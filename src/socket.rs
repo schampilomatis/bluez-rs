@@ -11,7 +11,6 @@ use std::os::unix::io::{FromRawFd, RawFd};
 use std::os::unix::net::UnixStream as SyncUnixStream;
 use tokio::io;
 use tokio::io::{AsyncReadExt, AsyncWriteExt, BufReader};
-use tokio::net::unix::{ReadHalf, WriteHalf};
 use tokio::net::UnixStream;
 
 #[repr(C)]
@@ -45,13 +44,12 @@ enum HciChannel {
 const HCI_DEV_NONE: c_ushort = 65535;
 
 #[derive(Debug)]
-pub struct ManagementSocket<'a> {
-    reader: BufReader<ReadHalf<'a>>,
-    writer: WriteHalf<'a>,
+pub struct ManagementSocket {
+    stream: UnixStream,
 }
 
-impl<'a, 'b> ManagementSocket<'b> {
-    pub fn open() -> Result<UnixStream, io::Error> {
+impl ManagementSocket {
+    pub fn open() -> Result<ManagementSocket, io::Error> {
         let fd: RawFd = unsafe {
             libc::socket(
                 libc::AF_BLUETOOTH,
@@ -79,42 +77,32 @@ impl<'a, 'b> ManagementSocket<'b> {
         } < 0
         {
             let err = io::Error::last_os_error();
-
-            unsafe {
-                libc::close(fd);
-            }
-
+            unsafe { libc::close(fd) };
             return Err(err);
         }
-
-        Ok(UnixStream::from_std(unsafe { SyncUnixStream::from_raw_fd(fd) }).unwrap())
-    }
-
-    pub fn from_socket(stream: &'a mut UnixStream) -> Result<ManagementSocket<'a>, io::Error> {
-        let (read_stream, write_stream) = stream.split();
-        Ok(ManagementSocket {
-            reader: BufReader::new(read_stream),
-            writer: write_stream,
-        })
+        let stream = UnixStream::from_std(unsafe { SyncUnixStream::from_raw_fd(fd) }).unwrap();
+        Ok(ManagementSocket { stream })
     }
 
     /// Returns either an error or the number of bytes that were sent.
     pub async fn send(&mut self, request: Request) -> Result<usize, io::Error> {
         let buf: Bytes = request.into();
-        self.writer.write(&buf).await
+        self.stream.write(&buf).await
     }
 
     pub async fn receive(&mut self) -> Result<Response, Error> {
         // read 6 byte header
         let mut header = [0u8; 6];
-        self.reader.read_exact(&mut header).await?;
+        let (r, _) = self.stream.split();
+        let mut reader = BufReader::new(r);
+        reader.read_exact(&mut header).await?;
 
         // this ugliness forces a &[u8] into [u8; 2]
         let param_size = u16::from_le_bytes([header[4], header[5]]) as usize;
 
         // read rest of message
         let mut body = vec![0u8; param_size];
-        self.reader.read_exact(&mut body[..]).await?;
+        reader.read_exact(&mut body[..]).await?;
 
         // make buffer by chaining header and body
         Response::parse(BufExt::chain(&header[..], &body[..]))

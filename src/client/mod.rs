@@ -27,14 +27,14 @@ mod query;
 mod settings;
 
 pub struct BlueZClient<'a> {
-    socket: ManagementSocket<'a>,
+    socket: ManagementSocket,
     handler: Option<Box<dyn (FnMut(Controller, &Event) -> ()) + Send + 'a>>,
 }
 
 impl<'a> BlueZClient<'a> {
     pub fn new() -> Result<Self> {
         Ok(BlueZClient {
-            socket: ManagementSocket::from_socket(&mut ManagementSocket::open()?)?,
+            socket: ManagementSocket::open()?,
             handler: None,
         })
     }
@@ -43,7 +43,7 @@ impl<'a> BlueZClient<'a> {
         handler: H,
     ) -> Result<Self> {
         Ok(BlueZClient {
-            socket: ManagementSocket::from_socket(&mut ManagementSocket::open()?)?,
+            socket: ManagementSocket::open()?,
             handler: Some(Box::new(handler)),
         })
     }
