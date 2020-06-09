@@ -20,7 +20,7 @@ enumflags2_derive = "<= 0.6.2"
 bytes = "0.5"
 bitvec = "0.17"
 futures = "0.3"
-async-std = { version = "1.4", features = ["attributes"] }
+tokio = { version = "0.2", features = ["full"] }
 
 [[bin]]
 name = "discover"

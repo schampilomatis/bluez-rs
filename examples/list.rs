@@ -9,7 +9,7 @@ use std::error::Error;
 
 use bluez::client::*;
 
-#[async_std::main]
+#[tokio::main]
 pub async fn main() -> Result<(), Box<dyn Error>> {
     let mut client = BlueZClient::new().unwrap();
 

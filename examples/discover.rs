@@ -8,13 +8,12 @@ extern crate bluez;
 use std::error::Error;
 use std::time::Duration;
 
-use async_std::task::block_on;
-
 use bluez::client::*;
 use bluez::interface::controller::*;
 use bluez::interface::event::Event;
+use futures::executor;
 
-#[async_std::main]
+#[tokio::main]
 pub async fn main() -> Result<(), Box<dyn Error>> {
     let mut client = BlueZClient::new().unwrap();
 
@@ -24,7 +23,7 @@ pub async fn main() -> Result<(), Box<dyn Error>> {
     let (controller, info) = controllers
         .into_iter()
         .filter_map(|controller| {
-            let info = block_on(client.get_controller_info(controller)).ok()?;
+            let info = executor::block_on(client.get_controller_info(controller)).ok()?;
 
             if info.supported_settings.contains(ControllerSetting::Powered) {
                 Some((controller, info))
